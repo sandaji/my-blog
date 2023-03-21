@@ -1,0 +1,19 @@
+{
+  "name": "ijamy-vincent-blog",
+  "version": "1.0.0",
+  "description": "- create a module that will allow librarians to manage basic librarry duties",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sandaji/my-blog.git"
+  },
+  "author": "ijamy vincent",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/sandaji/my-blog/issues"
+  },
+  "homepage": "https://github.com/sandaji/my-blog#readme"
+}
