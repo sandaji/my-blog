@@ -2,30 +2,35 @@ import mongoose from "mongoose";
 
 const { Schema } = mongoose;
 
-const userSchema = new Schema(
+const postSchema = new Schema(
   {
-    fullName: {
+    title: {
       type: String,
       required: true,
     },
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      match: [/^\S+@\S+\.\S+$/, "Please enter a valid email address."],
-    },
-    password: {
+    content: {
       type: String,
       required: true,
     },
-    role: {
+    summary: {
       type: String,
-      enum: ["user", "editor", "admin"],
-      default: "user",
+      required: true,
+    },
+    coverImage: {
+      type: String,
+    },
+    author: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
     },
     isApproved: {
       type: Boolean,
       default: false,
+    },
+    publishedDate: {
+      type: Date,
+      required: true,
     },
   },
   {
@@ -33,6 +38,6 @@ const userSchema = new Schema(
   }
 );
 
-const User = mongoose.model("User", userSchema);
+const Post = mongoose.model("Post", postSchema);
 
-export default User;
+export default Post;

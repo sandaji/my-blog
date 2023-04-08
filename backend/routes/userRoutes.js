@@ -1,18 +1,29 @@
 import express from "express";
-const router = express.Router();
+import asyncHandler from "express-async-handler";
+import { protect, isAdmin } from "../middlewares/authMiddleware.js";
 import {
+  authUser,
   registerUser,
-  loginUser,
-  userProfile,
-  updateProfile,
-  updateProfilePicture,
-} from "../controllers/userControllers";
-import { authGuard } from "../middleware/authMiddleware";
+  getUserProfile,
+  updateUserProfile,
+  getUsers,
+  deleteUser,
+  getUserById,
+  // updateUser,
+} from "../controllers/userControllers.js";
 
-router.post("/register", registerUser);
-router.post("/login", loginUser);
-router.get("/profile", authGuard, userProfile);
-router.put("/updateProfile", authGuard, updateProfile);
-router.put("/updateProfilePicture", authGuard, updateProfilePicture);
+const router = express.Router();
+
+router.post("/login", authUser);
+router.route("/").post(registerUser).get(protect, isAdmin, getUsers);
+router
+  .route("/profile")
+  .get(protect, getUserProfile)
+  .put(protect, updateUserProfile);
+router
+  .route("/:id")
+  .delete(protect, isAdmin, deleteUser)
+  .get(protect, isAdmin, getUserById)
+  .put(protect, isAdmin, updateUserProfile);
 
 export default router;

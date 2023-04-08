@@ -1,180 +1,144 @@
-import { uploadPicture } from "../middleware/uploadPictureMiddleware";
-import User from "../models/User";
-import { fileRemover } from "../utils/fileRemover";
+import asyncHandler from "express-async-handler";
+import User from "../models/User.js";
+import generateToken from "../config/generateToken.js";
 
-const registerUser = async (req, res, next) => {
-  try {
-    const { name, email, password } = req.body;
+// @desc    Auth user & get token
+// @route   POST /api/users/login
+// @access  Public
+const authUser = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
 
-    // check whether the user exists or not
-    let user = await User.findOne({ email });
+  const user = await User.findOne({ email });
 
-    if (user) {
-      throw new Error("User have already registered");
-    }
-
-    // creating a new user
-    user = await User.create({
-      name,
-      email,
-      password,
-    });
-
-    return res.status(201).json({
+  if (user && (await user.matchPassword(password))) {
+    res.json({
       _id: user._id,
-      avatar: user.avatar,
       name: user.name,
       email: user.email,
-      verified: user.verified,
-      admin: user.admin,
-      token: await user.generateJWT(),
+      role: user.role,
+      token: generateToken(user._id),
     });
-  } catch (error) {
-    next(error);
+  } else {
+    res.status(401);
+    throw new Error("Invalid email or password");
   }
-};
+});
 
-const loginUser = async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
+// @desc    Register a new user
+// @route   POST /api/users/register
+// @access  Public
+const registerUser = asyncHandler(async (req, res) => {
+  const { name, email, password } = req.body;
 
-    let user = await User.findOne({ email });
+  const userExists = await User.findOne({ email });
 
-    if (!user) {
-      throw new Error("Email not found");
-    }
-
-    if (await user.comparePassword(password)) {
-      return res.status(201).json({
-        _id: user._id,
-        avatar: user.avatar,
-        name: user.name,
-        email: user.email,
-        verified: user.verified,
-        admin: user.admin,
-        token: await user.generateJWT(),
-      });
-    } else {
-      throw new Error("Invalid email or password");
-    }
-  } catch (error) {
-    next(error);
+  if (userExists) {
+    res.status(400);
+    throw new Error("User already exists");
   }
-};
 
-const userProfile = async (req, res, next) => {
-  try {
-    let user = await User.findById(req.user._id);
+  const user = await User.create({
+    name,
+    email,
+    password,
+  });
 
-    if (user) {
-      return res.status(201).json({
-        _id: user._id,
-        avatar: user.avatar,
-        name: user.name,
-        email: user.email,
-        verified: user.verified,
-        admin: user.admin,
-      });
-    } else {
-      let error = new Error("User not found");
-      error.statusCode = 404;
-      next(error);
-    }
-  } catch (error) {
-    next(error);
+  if (user) {
+    res.status(201).json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      token: generateToken(user._id),
+    });
+  } else {
+    res.status(400);
+    throw new Error("Invalid user data");
   }
-};
+});
 
-const updateProfile = async (req, res, next) => {
-  try {
-    let user = await User.findById(req.user._id);
+// @desc    Get user by ID
+// @route   GET /api/users/:id
+// @access  Private/Admin
+const getUserById = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id).select('-password');
 
-    if (!user) {
-      throw new Error("User not found");
-    }
+  if (user) {
+    res.json(user);
+  } else {
+    res.status(404);
+    throw new Error('User not found');
+  }
+});
+// @desc    Get all users
+// @route   GET /api/users
+// @access  Private/Admin
+const getUsers = asyncHandler(async (req, res) => {
+  const users = await User.find({});
+  res.json(users);
+});
 
+
+// @desc    Get user profile
+// @route   GET /api/users/profile
+// @access  Private
+const getUserProfile = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+
+  if (user) {
+    res.json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    });
+  } else {
+    res.status(404);
+    throw new Error("User not found");
+  }
+});
+
+// @desc    Update user profile
+// @route   PUT /api/users/profile
+// @access  Private
+const updateUserProfile = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+
+  if (user) {
     user.name = req.body.name || user.name;
     user.email = req.body.email || user.email;
-    if (req.body.password && req.body.password.length < 6) {
-      throw new Error("Password length must be at least 6 character");
-    } else if (req.body.password) {
+    if (req.body.password) {
       user.password = req.body.password;
     }
 
-    const updatedUserProfile = await user.save();
+    const updatedUser = await user.save();
 
     res.json({
-      _id: updatedUserProfile._id,
-      avatar: updatedUserProfile.avatar,
-      name: updatedUserProfile.name,
-      email: updatedUserProfile.email,
-      verified: updatedUserProfile.verified,
-      admin: updatedUserProfile.admin,
-      token: await updatedUserProfile.generateJWT(),
+      _id: updatedUser._id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      role: updatedUser.role,
+      token: generateToken(updatedUser._id),
     });
-  } catch (error) {
-    next(error);
+  } else {
+    res.status(404);
+    throw new Error('User not found');
   }
-};
+});
 
-const updateProfilePicture = async (req, res, next) => {
-  try {
-    const upload = uploadPicture.single("profilePicture");
+// @desc    Delete a user
+// @route   DELETE /api/users/:id
+// @access  Private/Admin
+const deleteUser = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id);
 
-    upload(req, res, async function (err) {
-      if (err) {
-        const error = new Error(
-          "An unknown error occured when uploading " + err.message
-        );
-        next(error);
-      } else {
-        // every thing went well
-        if (req.file) {
-          let filename;
-          let updatedUser = await User.findById(req.user._id);
-          filename = updatedUser.avatar;
-          if (filename) {
-            fileRemover(filename);
-          }
-          updatedUser.avatar = req.file.filename;
-          await updatedUser.save();
-          res.json({
-            _id: updatedUser._id,
-            avatar: updatedUser.avatar,
-            name: updatedUser.name,
-            email: updatedUser.email,
-            verified: updatedUser.verified,
-            admin: updatedUser.admin,
-            token: await updatedUser.generateJWT(),
-          });
-        } else {
-          let filename;
-          let updatedUser = await User.findById(req.user._id);
-          filename = updatedUser.avatar;
-          updatedUser.avatar = "";
-          await updatedUser.save();
-          fileRemover(filename);
-          res.json({
-            _id: updatedUser._id,
-            avatar: updatedUser.avatar,
-            name: updatedUser.name,
-            email: updatedUser.email,
-            verified: updatedUser.verified,
-            admin: updatedUser.admin,
-            token: await updatedUser.generateJWT(),
-          });
-        }
-      }
-    });
-  } catch (error) {
-    next(error);
+  if (user) {
+    await user.remove();
+    res.json({ message: 'User removed' });
+  } else {
+    res.status(404);
+    throw new Error('User not found');
   }
-};
+});
 
-export {
-  registerUser,
-  loginUser,
-  userProfile,
-  updateProfile,
-  updateProfilePicture,
-};
+export { authUser,getUsers,updateUserProfile , registerUser,getUserById, getUserProfile, deleteUser };
